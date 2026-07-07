@@ -5,40 +5,50 @@ from backend.pipeline import process_document, answer_question
 
 app = FastAPI()
 
-# temporary in-memory storage (for now)
+# Store processed document data
 document_chunks = None
+document_index = None
 
 
-# --------- 1. Upload PDF ----------
-@app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
-    global document_chunks
-
-    pdf_bytes = await file.read()
-
-    # process document
-    document_chunks = process_document(pdf_bytes)
-
-    return {"message": "PDF processed successfully", "chunks": len(document_chunks)}
-
-
-# --------- 2. Ask Question ----------
 class QueryRequest(BaseModel):
     query: str
 
 
-@app.post("/query")
-def ask_question(request: QueryRequest):
+@app.get("/")
+def home():
+    return {"message": "Smart Document Q&A API is running"}
 
-    global document_chunks
 
-    if document_chunks is None:
-        return {"error": "No document uploaded yet"}
+@app.post("/upload")
+async def upload_pdf(file: UploadFile = File(...)):
+    global document_chunks, document_index
 
-    answer, sources = answer_question(request.query, document_chunks)
+    # Process PDF and create FAISS index
+    document_chunks, document_index = process_document(file.file)
 
     return {
-        "query": request.query,
-        "answer": answer,
-        "sources_used": len(sources)
+        "message": "PDF processed successfully",
+        "chunks": len(document_chunks)
     }
+
+
+@app.post("/query")
+def ask_question(request: QueryRequest):
+    global document_chunks, document_index
+
+    if document_chunks is None or document_index is None:
+        return {
+            "error": "Please upload a PDF first."
+        }
+
+    answer, sources = answer_question(
+        request.query,
+        document_chunks,
+        document_index
+    )
+
+    return {
+    "query": request.query,
+    "answer": answer,
+    "pages": list(set(chunk["page"] for chunk in sources))
+}
