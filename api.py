@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
 from backend.pipeline import (
@@ -51,9 +51,10 @@ def paste_text(request: TextRequest):
     document_chunks, document_index = process_text(request.text)
 
     if document_chunks is None:
-        return {
-            "error": "Please enter some text."
-        }
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter some text."
+        )
 
     return {
         "message": "Text processed successfully",

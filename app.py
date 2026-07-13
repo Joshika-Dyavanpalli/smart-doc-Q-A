@@ -76,13 +76,14 @@ else:
 
     if st.button("Process Text"):
 
-        with st.spinner("Processing text..."):
+        if not pasted_text.strip():
+            st.warning("Please enter some text.")
+            st.stop()
 
+        with st.spinner("Processing text..."):
             response = requests.post(
-                f"{API_URL}/paste-text",
-                json={
-                    "text": pasted_text
-                }
+            f"{API_URL}/paste-text",
+            json={"text": pasted_text}
             )
 
         if response.status_code == 200:
