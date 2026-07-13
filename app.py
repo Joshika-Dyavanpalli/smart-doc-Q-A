@@ -1,79 +1,164 @@
 import streamlit as st
 import requests
 
-st.set_page_config(page_title="Smart Document Q&A", page_icon="📄")
+st.set_page_config(page_title="Smart Document Q&A")
 
-st.title("📄 Smart Document Q&A")
+st.title("Smart Document Q&A")
 
 API_URL = "http://127.0.0.1:8000"
 
-uploaded_file = st.file_uploader(
-    "Upload a PDF",
-    type=["pdf"]
+# -----------------------------
+# Session State
+# -----------------------------
+if "uploaded" not in st.session_state:
+    st.session_state.uploaded = False
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# -----------------------------
+# Upload Section
+# -----------------------------
+input_method = st.radio(
+    "Choose Input Method",
+    [
+        "Upload PDF",
+        "Paste Text"
+    ]
 )
 
-if uploaded_file is not None:
+# -------- Upload PDF --------
+if input_method == "Upload PDF":
 
-    if st.button("Upload Document"):
+    uploaded_file = st.file_uploader(
+        "Upload a PDF",
+        type=["pdf"]
+    )
 
-        files = {
-            "file": (
-                uploaded_file.name,
-                uploaded_file,
-                "application/pdf"
+    if uploaded_file is not None:
+
+        if st.button("Upload Document"):
+
+            files = {
+                "file": (
+                    uploaded_file.name,
+                    uploaded_file,
+                    "application/pdf"
+                )
+            }
+
+            with st.spinner("Uploading and processing PDF..."):
+
+                response = requests.post(
+                    f"{API_URL}/upload",
+                    files=files
+                )
+
+            if response.status_code == 200:
+
+                st.session_state.uploaded = True
+
+                st.success(f"{uploaded_file.name} uploaded successfully!")
+
+            else:
+                try:
+                    st.error(response.json()["error"])
+                except:
+                    st.error("Upload failed")
+
+# -------- Paste Text --------
+else:
+
+    pasted_text = st.text_area(
+        "Paste your text here",
+        height=250
+    )
+
+    if st.button("Process Text"):
+
+        with st.spinner("Processing text..."):
+
+            response = requests.post(
+                f"{API_URL}/paste-text",
+                json={
+                    "text": pasted_text
+                }
             )
-        }
-
-        response = requests.post(
-            f"{API_URL}/upload",
-            files=files
-        )
 
         if response.status_code == 200:
-            st.success(f"'{uploaded_file.name}' uploaded successfully!")
+
+            st.session_state.uploaded = True
+
+            st.success("Text processed successfully!")
+
         else:
-            st.error("Upload failed")
-            
+            try:
+                st.error(response.json()["error"])
+            except:
+                st.error("Processing failed")
+
 st.divider()
 
-st.subheader("Ask a Question")
+# -----------------------------
+# Chat Section
+# -----------------------------
+if st.session_state.uploaded:
 
-query = st.text_input("Enter your question")
+    st.subheader("Chat with your Document")
 
-if st.button("Get Answer"):
+    # Display previous messages
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-    if query.strip() == "":
-        st.warning("Please enter a question.")
+    # Chat input
+    prompt = st.chat_input("Ask a question about your document")
 
-    else:
-        response = requests.post(
-            f"{API_URL}/query",
-            json={"query": query}
+    if prompt:
+
+        st.session_state.messages.append(
+            {
+                "role": "user",
+                "content": prompt
+            }
         )
+
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.spinner("Thinking..."):
+
+            response = requests.post(
+                f"{API_URL}/query",
+                json={
+                    "query": prompt
+                }
+            )
 
         if response.status_code == 200:
 
             result = response.json()
 
-            st.success("Answer")
+            answer = result["answer"]
 
-            st.write(result["answer"])
+            with st.chat_message("assistant"):
 
-            # Show page numbers if your API returns them
-            if "pages" in result:
-                st.info(f"Pages: {result['pages']}")
+                st.markdown(answer)
 
-            # Show sources if your API returns them
-            elif "sources" in result:
-                st.subheader("Sources")
+                if "pages" in result:
+                    st.caption(f"Pages: {result['pages']}")
 
-                for source in result["sources"]:
-                    st.write(f"**Page:** {source['page']}")
-                    if "distance" in source:
-                        st.write(f"Distance: {source['distance']}")
-                    if "text" in source:
-                        st.write(source["text"])
-                    st.divider()
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": answer
+                }
+            )
 
         else:
+
             st.error("Failed to get answer.")
+
+else:
+
+    st.info("Please upload a PDF or paste text first.")

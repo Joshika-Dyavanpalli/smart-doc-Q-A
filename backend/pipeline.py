@@ -16,6 +16,37 @@ def process_document(pdf_file):
 
     chunks = chunk_text(pages)
 
+    # Empty PDF handling
+    if not chunks:
+        return None, None
+
+    chunks = generate_embeddings(chunks)
+
+    index = build_faiss_index(chunks)
+
+    return chunks, index
+
+
+def process_text(text):
+    """
+    Processes pasted text.
+    """
+
+    if not text.strip():
+        return None, None
+
+    pages = [
+    {
+        "page": 1,
+        "text": text
+    }
+    ]
+
+    chunks = chunk_text(pages)
+
+    if not chunks:
+        return None, None
+
     chunks = generate_embeddings(chunks)
 
     index = build_faiss_index(chunks)
@@ -29,6 +60,10 @@ def answer_question(query, chunks, index):
     """
 
     top_chunks = retrieve_chunks(query, chunks, index)
+
+    # Retrieval threshold
+    if top_chunks is None:
+        return "Information not found in the document.", []
 
     context = build_context(top_chunks)
 

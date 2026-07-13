@@ -14,16 +14,19 @@ def read_pdf(pdf_file):
     pages = []
 
     for page_num, page in enumerate(reader.pages, start=1):
+
         page_text = page.extract_text()
 
-        if page_text:
-            full_text += page_text + "\n"
+    if page_text:
+        full_text += page_text + "\n"
 
-            pages.append({
-                "page": page_num,
-                "text": page_text
-            })
-        if not full_text.strip():
-          raise ValueError("No readable text found in the document.")
+        pages.append({
+            "page": page_num,
+            "text": page_text
+        })
+
+    # AFTER the loop
+    if not full_text.strip():
+        raise ValueError("No readable text found in the document.")
 
     return full_text, pages

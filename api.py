@@ -1,7 +1,11 @@
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 
-from backend.pipeline import process_document, answer_question
+from backend.pipeline import (
+    process_document,
+    process_text,
+    answer_question,
+)
 
 app = FastAPI()
 
@@ -14,6 +18,10 @@ class QueryRequest(BaseModel):
     query: str
 
 
+class TextRequest(BaseModel):
+    text: str
+
+
 @app.get("/")
 def home():
     return {"message": "Smart Document Q&A API is running"}
@@ -23,11 +31,32 @@ def home():
 async def upload_pdf(file: UploadFile = File(...)):
     global document_chunks, document_index
 
-    # Process PDF and create FAISS index
     document_chunks, document_index = process_document(file.file)
+
+    if document_chunks is None:
+        return {
+            "error": "This document appears to have no readable text."
+        }
 
     return {
         "message": "PDF processed successfully",
+        "chunks": len(document_chunks)
+    }
+
+
+@app.post("/paste-text")
+def paste_text(request: TextRequest):
+    global document_chunks, document_index
+
+    document_chunks, document_index = process_text(request.text)
+
+    if document_chunks is None:
+        return {
+            "error": "Please enter some text."
+        }
+
+    return {
+        "message": "Text processed successfully",
         "chunks": len(document_chunks)
     }
 
@@ -38,7 +67,7 @@ def ask_question(request: QueryRequest):
 
     if document_chunks is None or document_index is None:
         return {
-            "error": "Please upload a PDF first."
+            "error": "Please upload a PDF or paste text first."
         }
 
     answer, sources = answer_question(
@@ -48,7 +77,7 @@ def ask_question(request: QueryRequest):
     )
 
     return {
-    "query": request.query,
-    "answer": answer,
-    "pages": list(set(chunk["page"] for chunk in sources))
-}
+        "query": request.query,
+        "answer": answer,
+        "pages": list(set(chunk["page"] for chunk in sources))
+    }
